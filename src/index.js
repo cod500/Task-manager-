@@ -6,28 +6,12 @@ const jwt = require('jsonwebtoken')
 
 const app = express();
 // use heroku port or localhost
-const port = process.env.PORT || 3000;
-
+const port = process.env.PORT;
 
 //for express to read json data 
 app.use(express.json());
 app.use(userRouter);
 app.use(taskRouter);
-
-//jasonwebtoken genertor 
-// const myFunction = async () =>{
-//     const token = jwt.sign({ _id: 'abc123' }, 'thisismynewcourse')
-
-//         console.log(token);
-
-//        const data = jwt.verify(token, 'thisismynewcourse');
-//        console.log(data)
-// }
-
-// myFunction()
-
-
-
 
 //express server running
 app.listen(port, () =>{

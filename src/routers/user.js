@@ -1,7 +1,20 @@
-const express = require('express')
-const router = new express.Router()
+const express = require('express');
+const router = new express.Router();
+const multer = require('multer');
 const User = require('../models/users');
-const auth = require('../middleware/auth')
+const auth = require('../middleware/auth');
+const {sendWelcomeEmail, sendCancellationEmail} = require('../emails/account');
+
+const upload = multer({
+    limits: {
+        fileSize: 2000000
+    },
+    fileFilter(req, file, cb) {
+        if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+        return cb(new Error('Please upload a Word document')) }
+                cb(undefined, true)
+            }
+})
 
 
 router.post('/users', async (req, res) => {
@@ -9,6 +22,7 @@ router.post('/users', async (req, res) => {
 
     try {
         await user.save()
+        sendWelcomeEmail(user.email, user.name)
         const token = await user.generateAuthToken()
         res.status(201).send({user, token})
     } catch (e) {
@@ -16,11 +30,22 @@ router.post('/users', async (req, res) => {
     }
 })
 
+router.post('/users/me/avatar', upload.single('avatar'), auth, async (req, res) =>{
+    
+        const user = req.user
+        user.avatar = req.file.buffer;
+        await user.save()
+        res.send(user.avatar)
+  
+}, (error, req, res, next) =>{
+    res.status(400).send({error: error.message})
+})
+
 router.post('/users/login', async (req, res) =>{
     try{
         const user = await User.findByCredentials(req.body.email, req.body.password);
         const token = await user.generateAuthToken()
-        res.send({user, token})
+        res.status(200).send({user, token})
     }
     catch(e){
         res.status(400).send({error:'Unable to login'})
@@ -57,21 +82,23 @@ router.get('/users/me', auth, async (req, res) => {
    res.send(req.user)
 })
 
-// router.get('/users/:id', async (req, res) => {
-//     const _id = req.params.id
 
-//     try {
-//         const user = await User.findById(_id)
+router.get('/users/me/avatar/:id', async (req, res) =>{
+    try{
+        const user = await User.findById(req.params.id);
 
-//         if (!user) {
-//             return res.status(404).send()
-//         }
+        if(!user || !user.avatar){
+            throw new Error()
+        }
 
-//         res.send(user)
-//     } catch (e) {
-//         res.status(500).send()
-//     }
-// })
+        res.set('Content-Type', 'image/jpg')
+        res.send(user.avatar)
+    }
+    catch(e){
+        res.status(404).send()
+    }
+    
+})
 
 router.patch('/users/me', auth, async (req, res) => {
     const updates = Object.keys(req.body)
@@ -101,7 +128,7 @@ router.delete('/users/me', auth, async (req, res) => {
     try {
         const user = req.user;
         await user.remove()
-
+        sendCancellationEmail(user.email, user.name)
         res.send(user)
     } catch (e) {
         res.status(500).send()
